@@ -12,6 +12,7 @@ import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 public class OauthGoogleServices extends CordovaPlugin {
     private static final String TAG = "OauthGoogleServices";
@@ -19,9 +20,12 @@ public class OauthGoogleServices extends CordovaPlugin {
     private static final int REQUEST_CODE_PICK_ACCOUNT = 1000;
     private static final int REQUEST_AUTHORIZATION = 2;
     private static final String KEY_AUTH_TOKEN = "authtoken";
-    private static final String PROFILE_SCOPE = "https://www.googleapis.com/auth/plus.me";
+    private static final String PROFILE_SCOPE = "https://www.googleapis.com/auth/plus.me https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile";
     private CallbackContext _callbackContext = null;
     private String scope;
+    private String account;
+    private JSONObject result = new JSONObject();
+
 
     @Override
     public boolean execute(String action, JSONArray args, final CallbackContext callbackContext) throws JSONException {
@@ -30,12 +34,18 @@ public class OauthGoogleServices extends CordovaPlugin {
         if (action.equals("getToken")) {
             _callbackContext = callbackContext;
             scope = "oauth2:" + ("null".equals(args.getString(0)) ? PROFILE_SCOPE: args.getString(0));
+            account = "null".equals(args.getString(1)) ? null : args.getString(1);
             Runnable runnable = new Runnable() {
                 public void run() {
                     try {
-                        Intent intent = AccountPicker.newChooseAccountIntent(null, null,
-                                new String[]{GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE}, false, null, null, null, null);
-                        cordova.getActivity().startActivityForResult(intent, REQUEST_CODE_PICK_ACCOUNT);
+                        if (account != null) {
+                            result.put("email", account);
+                            getToken(account);
+                        } else {
+                            Intent intent = AccountPicker.newChooseAccountIntent(null, null,
+                                    new String[]{GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE}, false, null, null, null, null);
+                            cordova.getActivity().startActivityForResult(intent, REQUEST_CODE_PICK_ACCOUNT);
+                        }
                     } catch (ActivityNotFoundException e) {
                         Log.e(TAG, "Activity not found: " + e.toString());
                         _callbackContext.error("Plugin cannot find activity: " + e.toString());
@@ -50,6 +60,11 @@ public class OauthGoogleServices extends CordovaPlugin {
             cordova.getActivity().runOnUiThread(runnable);
             return true;
         }
+
+        if (action.equals("logout")) {
+            account = null;
+            callbackContext.success();
+        }
         return false;
     }
 
@@ -61,6 +76,7 @@ public class OauthGoogleServices extends CordovaPlugin {
                     if (resultCode == Activity.RESULT_OK) {
                         String accountName = data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME);
                         Log.i(TAG, "account:" + accountName);
+                        result.put("email", accountName);
                         getToken(accountName);
                     } else {
                         _callbackContext.error("plugin failed to get account");
@@ -68,7 +84,8 @@ public class OauthGoogleServices extends CordovaPlugin {
                 } else if (requestCode == REQUEST_AUTHORIZATION) {
                     if (resultCode == Activity.RESULT_OK) {
                         String token = data.getStringExtra(KEY_AUTH_TOKEN);
-                        _callbackContext.success(token);
+                         result.put("accessToken", token);
+                        _callbackContext.success(result);
                     } else {
                         _callbackContext.error("plugin failed to get token");
                     }
@@ -93,7 +110,8 @@ public class OauthGoogleServices extends CordovaPlugin {
                     Log.e(TAG, "Retrieving token for: " + accountName);
                     Log.e(TAG, "with scope(s): " + scope);
                     token = GoogleAuthUtil.getToken(cordova.getActivity(), accountName, scope);
-                    _callbackContext.success(token);
+                    result.put("accessToken", token);
+                    _callbackContext.success(result);
                 } catch (UserRecoverableAuthException userRecoverableException) {
                     Log.e(TAG, "UserRecoverableAuthException: Attempting recovery...");
                     cordova.getActivity().startActivityForResult(userRecoverableException.getIntent(), REQUEST_AUTHORIZATION);

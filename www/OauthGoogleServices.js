@@ -33,22 +33,30 @@ function parseArguments(args) {
 }
 
 module.exports = {
-    getToken: function () {
+    login: function (options) {
         var scope, done, err;
-        var options = parseArguments(arguments);
+        // var options = parseArguments(arguments);
         if (!window.cordova) {
-            if (options.err) {
-                options.err("The window.cordova API is not present.");
+            if (options.failure) {
+                options.failure("The window.cordova API is not present.");
             }
             return;
         }
         window.cordova.exec(function (response) {
-            options.done(response);
+            options.success(response);
         }, function (error) {
             console.log("The getToken call failed with the error: " + err);
-            if (options.err) {
-                options.err(error);
+            if (options.failure) {
+                options.failure(error);
             }
-        }, "OauthGoogleServices", "getToken", [options.scope]);
+        }, "OauthGoogleServices", "getToken", [options.scope, options.account]);
+    },
+
+    logout: function() {
+        window.cordova.exec(function (response) {
+            options.success(response);
+        }, function (error) {
+           options.success(error);
+        }, "OauthGoogleServices", "logout", []);
     }
 }
